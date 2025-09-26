@@ -27,40 +27,38 @@ class _AuthenPageState extends State<AuthenPage> {
     await prefs.setString('username', jsonString);
   }
 
-  Future<void> _login() async {
+  Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('jwt_token', token);
+  }
+Future<void> _login() async {
     if ((_formKey.currentState?.validate()) ?? false) {
       setState(() {
         _isLoading = true;
       });
 
-      final username = _userController.text;
-      final password = _passwordController.text;
-     final url = 'https://ss.cjk-cr.com/CJK/api/appfollowup/users.php';
-
-     //final url = 'http://192.168.1.15/CJKTRAINING/api/appfollowup/users.php';
+      final username = _userController.text.trim();
+      final password = _passwordController.text.trim();
+      final url = 'https://erp.imax.dev/api/auth/team/rush/login';
 
       try {
         final response = await http.post(
           Uri.parse(url),
-          body: {'username': username, 'passwords': password},
+          body: {'username': username, 'password': password},
         );
 
+        print('Login Response: ${response.body}'); 
+
+
         if (response.statusCode == 200) {
-          final dynamic data = json.decode(response.body);
-          bool loginSuccess = false;
+          final data = json.decode(response.body);
 
-          if (data is List && data.isNotEmpty) {
-            for (var user in data) {
-              if (user['username'] == username &&
-                  user['passwords'] == password) {
-                loginSuccess = true;
-                break;
-              }
-            }
-          }
-
-          if (loginSuccess) {
+          
+          if (data.containsKey('access_token')) {
+            final token = data['access_token'];
+            await saveToken(token);
             await saveUserJson({'username': username});
+
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -68,10 +66,10 @@ class _AuthenPageState extends State<AuthenPage> {
               ),
             );
           } else {
-            _showError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+            _showError('เข้าสู่ระบบไม่สำเร็จ: ไม่พบ token');
           }
         } else {
-          _showError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
+          _showError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
         }
       } catch (e) {
         _showError('เกิดข้อผิดพลาด: ${e.toString()}');
@@ -82,6 +80,7 @@ class _AuthenPageState extends State<AuthenPage> {
       }
     }
   }
+
 
   void _showError(String message) {
     showDialog(

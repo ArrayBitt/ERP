@@ -2,7 +2,7 @@ name: cjk
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.1+22
+version: 1.0.1+21
 
 environment:
   sdk: ^3.7.2
@@ -39,13 +39,8 @@ dependencies:
   video_compress: ^3.1.2
   image: ^4.0.15
   flutter_image_compress: ^2.1.0
-
-
-  
-
-
+  dropdown_search: ^5.0.6
  
-  
 
 dev_dependencies:
   flutter_test:

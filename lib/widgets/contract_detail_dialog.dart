@@ -21,7 +21,9 @@ class ContractDetailDialog extends StatelessWidget {
     }
   }
 
-  Widget _buildDetailRow(String title, String value) {
+  // ✅ รับ dynamic แล้วแปลงเป็น String
+  Widget _buildDetailRow(String title, dynamic value) {
+    final display = value?.toString() ?? 'ไม่ระบุ';
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -31,7 +33,7 @@ class ContractDetailDialog extends StatelessWidget {
             '$title: ',
             style: GoogleFonts.prompt(fontWeight: FontWeight.bold),
           ),
-          Expanded(child: Text(value, style: GoogleFonts.prompt())),
+          Expanded(child: Text(display, style: GoogleFonts.prompt())),
         ],
       ),
     );
@@ -61,18 +63,15 @@ class ContractDetailDialog extends StatelessWidget {
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: dialogWidth,
-          // กำหนด maxHeight ได้ถ้าต้องการ scrollable
           maxHeight: MediaQuery.of(context).size.height * 0.6,
         ),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDetailRow('เลขที่สัญญา', contract['contractno']),
-              _buildDetailRow(
-                'รหัสผู้ติดตาม',
-                contract['username'] ?? 'ไม่ระบุ',
-              ),
+               _buildDetailRow('id', contract['contractid']), 
+              _buildDetailRow('เลขที่สัญญา', contract['contractno']),       
+              _buildDetailRow('รหัสผู้ติดตาม', contract['username']),
               _buildDetailRow(
                 'วันที่ทำสัญญา',
                 formatDateToThaiDDMMYYYY(contract['contractdate']),
@@ -81,13 +80,10 @@ class ContractDetailDialog extends StatelessWidget {
                 'วันที่จ่ายงาน',
                 formatDateToThaiDDMMYYYY(contract['tranferdate']),
               ),
-              _buildDetailRow('ยอดชำระ', contract['hpprice'] ?? 'ไม่ระบุ'),
-              _buildDetailRow(
-                'หมายเหตุ',
-                contract['followremark'] ?? 'ไม่ระบุ',
-              ),
-              _buildDetailRow('เบอร์มือถือ', contract['mobileno'] ?? 'ไม่ระบุ'),
-              _buildDetailRow('ที่อยู่', contract['addressis'] ?? 'ไม่ระบุ'),
+              _buildDetailRow('ยอดชำระ', contract['hpprice']),
+              _buildDetailRow('หมายเหตุ', contract['followremark']),
+              _buildDetailRow('เบอร์มือถือ', contract['mobileno']),
+              _buildDetailRow('ที่อยู่', contract['addressis']),
             ],
           ),
         ),
@@ -110,18 +106,23 @@ class ContractDetailDialog extends StatelessWidget {
               MaterialPageRoute(
                 builder:
                     (_) => SaveRushPage(
-                      contractNo: contract['contractno'] ?? '',
-                      hpprice: contract['hpprice'] ?? '',
-                      username: contract['username'] ?? '',
-                      hpIntAmount: contract['hp_intamount'] ?? '',
-                      aMount408: contract['amount408'] ?? '',
-                      aRname: contract['arname'] ?? '',
-                      tranferdate: contract['tranferdate'] ?? '',
-                      estmdate: contract['estm_date'] ?? '',
+                      contractNo: contract['contractno']?.toString() ?? '',
+                      hpprice: contract['hpprice']?.toString() ?? '',
+                      username: contract['username']?.toString() ?? '',
+                      hpIntAmount: contract['hp_intamount']?.toString() ?? '',
+                      aMount408: contract['amount408']?.toString() ?? '',
+                      aRname: contract['arname']?.toString() ?? '',
+                      tranferdate: contract['tranferdate']?.toString() ?? '',
+                      estmdate: contract['estm_date']?.toString() ?? '',
                       videoFilenames: [],
-                      hp_overdueamt: contract['hp_overdueamt'] ?? '',
-                      seqno: contract['seqno'] ?? '',
-                      follow400: contract['follow400'] ?? '',
+                      hp_overdueamt:
+                          contract['hp_overdueamt']?.toString() ?? '',
+                      seqno: contract['seqno']?.toString() ?? '',
+                      follow400: contract['follow400']?.toString() ?? '',
+                      contractId: contract['contractid']?.toString() ?? '', 
+                      followCount: '',
+                       employeeId: '',
+                        currentUserId: '',
                     ),
               ),
             );
@@ -143,7 +144,7 @@ class ContractDetailDialog extends StatelessWidget {
               MaterialPageRoute(
                 builder:
                     (_) => ShowContractPage(
-                      contractNo: contract['contractno'] ?? '',
+                      contractNo: contract['contractno']?.toString() ?? '',
                       username: '',
                       hpprice: null,
                     ),

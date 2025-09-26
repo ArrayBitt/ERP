@@ -5,6 +5,7 @@ import 'package:cjk/widgets/contract_search_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../states/authen.dart';
 
@@ -19,6 +20,7 @@ class MainMobile extends StatefulWidget {
 class _MainMobileState extends State<MainMobile> {
   bool _isLoading = false;
   List<dynamic> _contracts = [];
+  List<String> _contractIds = []; 
   String _searchQuery = '';
 
   @override
@@ -27,39 +29,74 @@ class _MainMobileState extends State<MainMobile> {
     _fetchData();
   }
 
-   Future<void> _fetchData() async {
-   final url ='https://ss.cjk-cr.com/CJK/api/appfollowup/contract_api.php?username=${widget.username}';
-   //final url = 'http://192.168.1.15/CJKTRAINING/api/appfollowup/contract_api.php?username=${widget.username}';
+  Future<String> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('jwt_token') ?? '';
+  }
+
+ Future<void> _fetchData() async {
+    final url =
+        'https://erp.imax.dev/api/followups/fin/send/mobilepp?username=${widget.username}';
+    final token = await _getToken();
 
     setState(() {
       _isLoading = true;
       _contracts = [];
+      _contractIds = [];
     });
 
     try {
-      final response = await http.post(
+      final response = await http.get(
         Uri.parse(url),
-        body: {'username': widget.username},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
       );
+
+      // 🟢 log status + body ของ API ออกมาก่อน parse
+      print('DEBUG status: ${response.statusCode}');
+      print('DEBUG raw body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+
+        // 🟢 log data ที่ decode แล้ว
+        print('DEBUG decoded data: $data');
+
         if (data is List) {
-          final filtered =
-              data.where((item) {
-                final checkrush = item['checkrush'];
-                if (checkrush == null) return true;
-                return checkrush.toString().toLowerCase().trim() != 'true';
+          int countWithContractDi = 0;
+
+          final contractsWithId =
+              data.map((item) {
+                final cd = item['contractdi'];
+                if (cd != null && cd.toString().trim().isNotEmpty) {
+                  countWithContractDi++;
+                }
+
+                // 🟢 log ค่าแต่ละ item
+                print('DEBUG item: $item');
+
+                return {...item, 'contractdi': cd ?? ''};
               }).toList();
 
+          print('DEBUG total items: ${data.length}');
+          print('DEBUG items with contractdi: $countWithContractDi');
+
+          final ids =
+              contractsWithId
+                  .map<String>((item) => item['contractdi'].toString())
+                  .toList();
+
           setState(() {
-            _contracts = filtered;
+            _contracts = contractsWithId;
+            _contractIds = ids;
           });
         } else {
           _showError('ข้อมูลไม่ถูกต้อง');
         }
       } else {
-        _showError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
+        _showError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ (${response.statusCode})');
       }
     } catch (e) {
       _showError('เกิดข้อผิดพลาด: $e');
@@ -69,6 +106,7 @@ class _MainMobileState extends State<MainMobile> {
       });
     }
   }
+
 
   void _showError(String message) {
     showDialog(
@@ -140,7 +178,6 @@ class _MainMobileState extends State<MainMobile> {
     final filteredContracts =
         _contracts.where((contract) {
           final search = _searchQuery.toLowerCase();
-          // Search เช็คทุกค่าใน contract ว่ามีคำค้นไหม
           return contract.values.any(
             (value) =>
                 value != null &&
@@ -153,7 +190,7 @@ class _MainMobileState extends State<MainMobile> {
         backgroundColor: Colors.white,
         centerTitle: true,
         title: Text(
-          'สัญญาเร่งรัด (V 1.22)',
+          'สัญญาเร่งรัด (V 1.21)',
           style: GoogleFonts.prompt(
             fontWeight: FontWeight.bold,
             fontSize: 20,

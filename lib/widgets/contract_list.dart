@@ -4,7 +4,8 @@ import 'contract_list_item.dart';
 class ContractList extends StatelessWidget {
   final List<dynamic> contracts;
   final Function(String) onPhoneCall;
-  final Function(dynamic) onShowDetail;
+final void Function(dynamic) onShowDetail;
+
 
   ContractList({
     required this.contracts,

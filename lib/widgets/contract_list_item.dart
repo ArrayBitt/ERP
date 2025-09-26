@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+String safeString(dynamic value) {
+  if (value == null) return '-';
+  if (value is String) return value;
+  if (value is int || value is double) return value.toString();
+  return '-';
+}
+
+
 class ContractListItem extends StatelessWidget {
   final dynamic contract;
   final Function(String) onPhoneCall;
   final VoidCallback onShowDetail;
 
-  ContractListItem({
+  const ContractListItem({
+    Key? key,
     required this.contract,
     required this.onPhoneCall,
     required this.onShowDetail,
-  });
+  }) : super(key: key); // ✅ ต้องมี super.key ด้วย
 
-  // แปลงวันที่เป็น DDMMYYYY (แบบพ.ศ.)
   String formatToDDMMYYYYThai(String? input) {
     if (input == null || input.length != 8) return 'ไม่ระบุ';
     try {
@@ -25,7 +33,9 @@ class ContractListItem extends StatelessWidget {
     }
   }
 
-  Widget buildInfoBox(String label, String? value, {bool highlight = false}) {
+  Widget buildInfoBox(String label, dynamic value, {bool highlight = false}) {
+    String displayValue = value == null ? '-' : value.toString();
+
     return Container(
       width: 150,
       padding: EdgeInsets.all(8),
@@ -42,7 +52,7 @@ class ContractListItem extends StatelessWidget {
           ),
           SizedBox(height: 4),
           Text(
-            value ?? '-',
+            displayValue,
             style: GoogleFonts.prompt(
               fontSize: 14,
               fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
@@ -67,86 +77,57 @@ class ContractListItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // หัวข้อ
             RichText(
               text: TextSpan(
                 style: GoogleFonts.prompt(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal[700], // สีของ "เลขที่สัญญา:"
+                  color: Colors.teal[700],
                 ),
                 children: [
                   TextSpan(
                     text: 'เลขที่สัญญา: ${contract['contractno'] ?? ''} ',
                   ),
-                  // แสดงรูปถ้า groupleve เป็น A01 หรือ B08
-                  if ((contract['grouplevel'] ?? '').toString().toUpperCase() ==
-                          'A01' ||
-                      (contract['grouplevel'] ?? '').toString().toUpperCase() ==
-                          'B08')
                     WidgetSpan(
                       alignment: PlaceholderAlignment.middle,
                       child: Padding(
                         padding: EdgeInsets.only(left: 4, bottom: 2),
-                        child: Image.asset(
-                          'assets/icon/sidecar.png',
-                          width: 20,
-                          height: 20,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.error,
-                              size: 20,
-                              color: Colors.red,
-                            );
-                          },
-                        ),
                       ),
-                    ),
-                  if (contract['restatus'] == 'Y')
-                    TextSpan(
-                      text: ' (❗️หลุดนัด)',
-                      style: TextStyle(
-                        color: Colors.red,
-                      ), // สีแดงสำหรับ "หลุดนัด"
                     ),
                 ],
               ),
             ),
-
             SizedBox(height: 5),
-            // กล่องข้อมูล
-            Wrap(
+           Wrap(
               spacing: 5,
               runSpacing: 5,
               children: [
-                buildInfoBox('ชื่อลูกค้า', contract['arname']),
+                buildInfoBox('id', safeString(contract['contractid'])),
+                buildInfoBox('iduser', safeString(contract['employees_record_id'])),
+                buildInfoBox('ชื่อลูกค้า', safeString(contract['arname'])),
                 buildInfoBox(
                   'วันที่ทำสัญญา',
-                  formatToDDMMYYYYThai(contract['contractdate']),
+                  formatToDDMMYYYYThai(safeString(contract['contractdate'])),
                 ),
-                buildInfoBox('เบอร์โทร', contract['mobileno']),
-                buildInfoBox('หมายเหตุ', contract['followremark']),
-                buildInfoBox('ที่อยู่', contract['addressis']),
-                // buildInfoBox('ค่าทวงถาม', contract['amount408']),
-                // buildInfoBox('ค่าปรับ', contract['hp_intamount']),
+                buildInfoBox('เบอร์โทร', safeString(contract['mobileno'])),
+                buildInfoBox('หมายเหตุ', safeString(contract['followremark'])),
+                buildInfoBox('ที่อยู่', safeString(contract['addressis'])),
                 buildInfoBox(
                   'วันที่จ่ายงาน',
-                  formatToDDMMYYYYThai(contract['tranferdate']),
+                  formatToDDMMYYYYThai(safeString(contract['tranferdate'])),
                 ),
-
-                buildInfoBox('เวลาจ่ายงาน', contract['estm_date']),
-                buildInfoBox('ค่าติดตาม', contract['follow400']),
-                buildInfoBox('ยี่ห่อรถ', contract['brandname']),
-                // buildInfoBox('SEQ No.', contract['seqno']),
+                buildInfoBox('เวลาจ่ายงาน', safeString(contract['estm_date'])),
+                buildInfoBox('ค่าติดตาม', safeString(contract['follow400'])),
+                buildInfoBox('ยี่ห่อรถ', safeString(contract['brandname'])),
                 buildInfoBox(
                   'ยอดค้างชำระ',
-                  contract['hpprice'],
+                  safeString(contract['hpprice']),
                   highlight: true,
                 ),
               ],
             ),
+
             SizedBox(height: 12),
-            // ปุ่มด้านล่างขวา
             LayoutBuilder(
               builder: (context, constraints) {
                 final isNarrow = constraints.maxWidth < 400;
@@ -154,7 +135,7 @@ class ContractListItem extends StatelessWidget {
                     isNarrow ? (constraints.maxWidth / 2) - 20 : 150.0;
 
                 return Row(
-                  mainAxisAlignment: MainAxisAlignment.center, // จัดกลางแนวนอน
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (contract['mobileno'] != null &&
                         contract['mobileno'].toString().trim().isNotEmpty)

@@ -8,8 +8,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart'; // เพิ่มการ import สำหรับการแปลงวันที่
 import 'package:cjk/states/cameraGridPage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SaveRushPage extends StatefulWidget {
+  final String contractId;
+
   final String contractNo;
   final String hpprice;
   final String username;
@@ -21,6 +24,9 @@ class SaveRushPage extends StatefulWidget {
   final String hp_overdueamt;
   final String follow400;
   final String seqno;
+  final String followCount;
+  final String employeeId;
+  final String currentUserId;
   final List<String?> videoFilenames;
 
   const SaveRushPage({
@@ -37,6 +43,10 @@ class SaveRushPage extends StatefulWidget {
     required this.hp_overdueamt,
     required this.seqno,
     required this.follow400,
+    required this.contractId,
+    required this.followCount,
+    required this.employeeId,
+    required this.currentUserId,
   }) : super(key: key);
 
   @override
@@ -44,6 +54,10 @@ class SaveRushPage extends StatefulWidget {
 }
 
 class _SaveRushPageState extends State<SaveRushPage> {
+  String? _selectedFollowType;
+  List<Map<String, dynamic>> _followTypes = [];
+  int? _selectedFollowTypeId; // nullable
+
   final _formKey = GlobalKey<FormState>();
 
   // ตัวแปรนี้ใช้เก็บสถานะว่าควรส่ง '0.00' แทนค่าจริงหรือไม่
@@ -127,8 +141,6 @@ class _SaveRushPageState extends State<SaveRushPage> {
   bool _isCompleted = false;
 
   bool _loadingFollowTypes = true;
-  List<Map<String, String>> _followTypes = [];
-  String? _selectedFollowType;
 
   List<String?> imageFilenames = List.filled(6, null);
 
@@ -157,48 +169,47 @@ class _SaveRushPageState extends State<SaveRushPage> {
 
   String formatThaiDate(String input) {
     try {
-      final parts = input.split('/'); // ['18','03','2568']
+      final parts = input.split('/');
       if (parts.length == 3) {
-        final day = parts[0].padLeft(2, '0'); // '18'
-        final month = parts[1].padLeft(2, '0'); // '03'
-        final year = parts[2].padLeft(4, '0'); // '2568'
+        final day = parts[0].padLeft(2, '0');
+        final month = parts[1].padLeft(2, '0');
+        final year = parts[2].padLeft(4, '0');
 
-        return '$year$month$day'; // คืนเป็น '25680318'
+        return '$year$month$day';
       }
     } catch (e) {
       print('Error in date format: $e');
     }
-    return input; // fallback ถ้ารูปแบบไม่ถูกต้อง
+    return input;
   }
 
   Future<void> _fetchFollowTypes() async {
-    const url =
-        'https://ss.cjk-cr.com/CJK/api/appfollowup/get_followtype.php?followtype=M-1';
-
-    // const url =
-    //     'http://192.168.1.15/CJKTRAINING/api/appfollowup/get_followtype.php?followtype=M-1';
+    const keyword = 'M-1';
+    final url =
+        'https://erp-uat.somjai.app/api/trackingtypes/search?keyword=$keyword';
 
     try {
       final res = await http.get(Uri.parse(url));
+
       if (res.statusCode == 200) {
-        final List data = json.decode(res.body);
+        final Map<String, dynamic> responseData = json.decode(res.body);
+        final List data = responseData['data'] ?? [];
+
         setState(() {
           _followTypes =
-              data
-                  .map<Map<String, String>>(
-                    (item) => {
-                      'code': item['followtype'].toString(),
-                      'label': item['meaning'].toString(),
-                    },
-                  )
-                  .toList();
-          _loadingFollowTypes = false;
+              data.map<Map<String, dynamic>>((item) {
+                return {
+                  'id': item['id'], // ใช้ ID จริง
+                  'trackingtype': item['trackingtype'].toString(),
+                  'meaning': item['meaning'].toString(),
+                };
+              }).toList();
         });
       } else {
-        setState(() => _loadingFollowTypes = false);
+        print('❌ ดึงข้อมูล trackingtype ไม่สำเร็จ: Status ${res.statusCode}');
       }
-    } catch (_) {
-      setState(() => _loadingFollowTypes = false);
+    } catch (e) {
+      print('❌ เกิดข้อผิดพลาดขณะดึง trackingtype: $e');
     }
   }
 
@@ -255,11 +266,15 @@ class _SaveRushPageState extends State<SaveRushPage> {
     }
   }
 
+
+  // ฟังก์ชั่นบันทึก
   Future<Map<String, dynamic>> _saveRush() async {
-    DateTime now = DateTime.now();
-    String entryDate =
-        '${now.year + 543}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    String timeUpdate = DateFormat('HH:mm:ss').format(now);
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token') ?? '';
+
+    if (token.isEmpty) {
+      return {'success': false, 'message': '❌ ไม่มี JWT token'};
+    }
 
     double? latitude;
     double? longitude;
@@ -273,28 +288,15 @@ class _SaveRushPageState extends State<SaveRushPage> {
             ? _otherAdressController.text
             : (_selectedaddressType ?? '');
     String fdatacar =
-        _isOtherDatacar
-            ? _otherDatacarController.text
-            : (_selectedfdatacarType ?? '');
+        _isOtherDatacarDetail
+            ? _otherDatacarDetailController.text
+            : (_selectedDatacarDetail ?? '');
     String farea =
         _isOtherArea ? _otherAreaController.text : (_selectedareaType ?? '');
     String fproperty =
         _isOtherProperty
             ? _otherPropertyController.text
             : (_selectedproperType ?? '');
-
-    String getFinalFollowAmountToSend() {
-      final overdueAmt = double.tryParse(widget.hp_overdueamt) ?? 0.0;
-      final follow400 = double.tryParse(widget.follow400) ?? 0.0;
-
-      if (overdueAmt <= 1000) {
-        return '0.00'; // ไม่ถึงเกณฑ์ ไม่คิดค่าติดตาม
-      } else if (overdueAmt > 1000 && follow400 == 0.00) {
-        return '400.00'; // ครั้งแรกเท่านั้น ที่ยังไม่เคยถูกคิดค่าติดตาม
-      } else {
-        return '0.00'; // ครั้งถัดไป หรือเคยมี follow400 แล้ว
-      }
-    }
 
     try {
       Position position = await Geolocator.getCurrentPosition(
@@ -306,154 +308,85 @@ class _SaveRushPageState extends State<SaveRushPage> {
       print('⚠️ ไม่สามารถดึงตำแหน่งได้: $e');
     }
 
-    final String url1 =
-        'https://ss.cjk-cr.com/CJK/api/appfollowup/save_test.php?contractno=${widget.contractNo}';
+    // ป้องกันค่า ID ว่าง
+    if (_selectedFollowTypeId == null) {
+      return {'success': false, 'message': '❌ กรุณาเลือกประเภทการติดตาม'};
+    }
 
-    final data1 = {
-      'contractno': widget.contractNo,
-      'memo': _noteController.text,
-      'followtype': _selectedFollowType ?? '',
-      'meetingdate': formatThaiDate(_dueDateController.text),
-      'entrydate': entryDate,
-      'timeupdate': timeUpdate,
-      'meetingamount': _amountController.text,
-      'followamount': getFinalFollowAmountToSend(), // ✅ ใช้ค่าที่คำนวณแล้ว
-      'mileages': _mileageController.text,
-      'maplocations': locationController.text,
-      'checkrush': _isCompleted.toString(),
-      'latitude': latitude?.toString() ?? '',
-      'longtitude': longitude?.toString() ?? '',
-      'follower': widget.username,
-      'username': widget.username,
-      'fperson': fperson,
-      'faddress': faddress,
-      'fdatacar': fdatacar,
-      'farea': farea,
-      'fproperty': fproperty,
-      'fcarstatus': fcarstatus,
-      'pica': imageFilenames.length > 0 ? imageFilenames[0] : '',
-      'picb': imageFilenames.length > 1 ? imageFilenames[1] : '',
-      'picc': imageFilenames.length > 2 ? imageFilenames[2] : '',
-      'picd': imageFilenames.length > 3 ? imageFilenames[3] : '',
-      'pice': imageFilenames.length > 4 ? imageFilenames[4] : '',
-      'picf': imageFilenames.length > 5 ? imageFilenames[5] : '',
+    print('▶️ เริ่มบันทึกข้อมูล... trackingTypeId: $_selectedFollowTypeId');
+
+    final Map<String, dynamic> data = {
+      'contractid': widget.contractId,
+      'trackingtypeid': _selectedFollowTypeId, // ใช้ nullable int ที่อัปเดตแล้ว
+      'follow_up_count': int.tryParse(widget.followCount) ?? 1,
+      'employeesid': int.tryParse(widget.employeeId) ?? 0,
+      'follow_result': fperson,
+      'due_date':
+          _dueDateController.text.isNotEmpty
+              ? DateFormat(
+                'yyyy-MM-dd',
+              ).format(DateFormat('dd/MM/yyyy').parse(_dueDateController.text))
+              : null,
+      'penalty_fee': double.tryParse(widget.hpIntAmount) ?? 0,
+      'tracking_fee': double.tryParse(_followFeeController.text) ?? 0,
+      'mileage': int.tryParse(_mileageController.text) ?? 0,
+      'employees_record_id': int.tryParse(widget.currentUserId) ?? 0,
+      'followupfee_amt': double.tryParse(widget.aMount408) ?? 0,
+      'overdue_amt': double.tryParse(widget.hp_overdueamt) ?? 0,
+      'follow_date': DateTime.now().toIso8601String(),
+      'person_type': fperson,
+      'tracking_address': faddress,
+      'car_value': fdatacar,
+      'field_result': farea,
+      'asset_result': fproperty,
+      'lcation_follow': locationController.text,
+      'process_status': _isCompleted,
+      'remark': _noteController.text,
+      'latitude': latitude ?? 0,
+      'longtitude': longitude ?? 0,
     };
 
-    print('📤 ส่งข้อมูลไปยัง API แรก: $url1');
-    print('📦 Payload API แรก: $data1');
+    final url = 'https://erp-uat.somjai.app/api/debttrackings/';
+
+    print('📤 ส่งข้อมูลไปยัง API: $url');
+    print('📦 Payload API: $data');
 
     try {
-      final res1 = await http.post(
-        Uri.parse(url1),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data1),
+      final res = await http.post(
+        Uri.parse(url),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode(data),
       );
 
-      print('📥 Response API แรก Code: ${res1.statusCode}');
-      print('📥 Response API แรก Body: ${res1.body}');
+      print('📥 Response Code: ${res.statusCode}');
+      print('📥 Response Body: ${res.body}');
 
-      final responseData1 = json.decode(res1.body);
-
-      if (res1.statusCode != 200 || responseData1['status'] != 'success') {
-        final msg =
-            responseData1 is Map && responseData1.containsKey('message')
-                ? responseData1['message']
-                : 'เกิดข้อผิดพลาดจาก API แรก';
+      if (res.statusCode == 201) {
+        return {'success': true};
+      } else {
+        final body = json.decode(res.body);
+        final msg = body['message'] ?? 'เกิดข้อผิดพลาดจาก API';
         return {'success': false, 'message': '❌ API บันทึกติดตามล้มเหลว: $msg'};
       }
-
-      // ✅ API ที่ 2
-      final String url2 =
-          'https://ss.cjk-cr.com/CJK/api/appfollowup/update_checkrush.php?contractno=${widget.contractNo}';
-      final data2 = {
-        'contractno': widget.contractNo,
-        'tranferdate': widget.tranferdate,
-        'estm_date': widget.estmdate,
-        'checkrush': _isCompleted.toString(),
-        'username': widget.username,
-      };
-
-      print('📤 ส่งข้อมูลไปยัง API ที่สอง: $url2');
-      print('📦 Payload API ที่สอง: $data2');
-
-      final res2 = await http.post(
-        Uri.parse(url2),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data2),
-      );
-
-      print('📥 Response API ที่สอง Code: ${res2.statusCode}');
-      print('📥 Response API ที่สอง Body: ${res2.body}');
-
-      final responseData2 = json.decode(res2.body);
-
-      if (res2.statusCode != 200 || responseData2['status'] != 'success') {
-        final msg =
-            responseData2 is Map && responseData2.containsKey('message')
-                ? responseData2['message']
-                : 'เกิดข้อผิดพลาดจาก API ที่สอง';
-        return {
-          'success': false,
-          'message': '❌ API อัปเดต checkrush ล้มเหลว: $msg',
-        };
-      }
-
-      // ✅ API ที่ 3
-      final String url3 =
-          'https://ss.cjk-cr.com/CJK/api/appfollowup/uprush_test.php?contractno=${widget.contractNo}';
-      final data3 = {
-        'contractno': widget.contractNo,
-        'entrydate': entryDate,
-        'followtype': _selectedFollowType ?? '',
-        'username': widget.username,
-        'follower': widget.username,
-        'followamount':
-            getFinalFollowAmountToSend(), // ✅ ตรงนี้ก็ใช้ค่าที่คำนวณแล้ว
-        'timeupdate': timeUpdate,
-        'seqno': widget.seqno.toString(),
-      };
-
-      print('📤 ส่งข้อมูลไปยัง API ที่สาม: $url3');
-      print('📦 Payload API ที่สาม: $data3');
-
-      final res3 = await http.post(
-        Uri.parse(url3),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data3),
-      );
-
-      print('📥 Response API ที่สาม Code: ${res3.statusCode}');
-      print('📥 Response API ที่สาม Body: ${res3.body}');
-
-      final responseData3 = json.decode(res3.body);
-
-      if (res3.statusCode != 200 || responseData3['status'] != 'success') {
-        final msg =
-            responseData3 is Map && responseData3.containsKey('message')
-                ? responseData3['message']
-                : 'เกิดข้อผิดพลาดจาก API ที่สาม';
-        return {
-          'success': false,
-          'message': '❌ API บันทึก tblfollowup_ntl ล้มเหลว: $msg',
-        };
-      }
-
-      print('✅ บันทึกสำเร็จทั้ง 3 API');
-      return {'success': true};
     } catch (e) {
       print('❌ เกิดข้อผิดพลาดขณะส่งข้อมูล: $e');
       return {'success': false, 'message': '❌ ข้อผิดพลาดระบบ: ${e.toString()}'};
     }
   }
 
-  void _submitForm() async {
+
+void _submitForm() async {
     print('เริ่มบันทึกข้อมูล...');
 
-    if (_selectedFollowType == null) {
+    // ✅ แก้ไขตรงนี้ ใช้ _selectedFollowTypeId แทน _selectedFollowType
+    if (_selectedFollowTypeId == null || _selectedFollowTypeId == 0) {
       print('ยังไม่ได้เลือกประเภทการตาม');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('กรุณาเลือกประเภทการตาม')));
+      ).showSnackBar(SnackBar(content: Text('กรุณาเลือกประเภทการติดตาม')));
       return;
     }
 
@@ -466,17 +399,13 @@ class _SaveRushPageState extends State<SaveRushPage> {
       return;
     }
 
-    final hasAtLeastOneImage = imageFilenames.any(
-      (filename) => filename != null && filename.trim().isNotEmpty,
-    );
-
     if (!_formKey.currentState!.validate()) {
       print('Form validation ไม่ผ่าน');
       return;
     }
 
     setState(() => _isSaving = true);
-    final result = await _saveRush(); // now returns a Map
+    final result = await _saveRush();
     setState(() => _isSaving = false);
 
     print('บันทึกสำเร็จหรือไม่: ${result['success']}');
@@ -540,114 +469,28 @@ class _SaveRushPageState extends State<SaveRushPage> {
                     _buildInfoRow('ผลการลงพื้นที่', farea),
                     _buildInfoRow('ผลทรัพย์สิน', fproperty),
                     _buildInfoRow('ข้อความ', _noteController.text),
+
+                    // ✅ แก้ตรงนี้ ใช้ _selectedFollowTypeId
                     _buildInfoRow(
                       'ประเภทการตาม',
                       _followTypes.firstWhere(
-                            (e) => e['code'] == _selectedFollowType,
-                          )['label'] ??
+                            (e) => e['id'] == _selectedFollowTypeId,
+                            orElse: () => {'meaning': '-'},
+                          )['meaning'] ??
                           '-',
                     ),
+
                     _buildInfoRow('วันนัดชำระ', _dueDateController.text),
                     _buildInfoRow('จำนวนเงิน', _amountController.text),
                     _buildInfoRow(
                       'ค่าติดตาม (ระบบคำนวณ)',
                       _followFeeController.text,
                     ),
-
                     _buildInfoRow('ระยะไมล์', _mileageController.text),
                     _buildInfoRow('สถานที่', locationController.text),
                     _buildInfoRow(
                       'สถานะการดำเนินการ',
                       getStatusText(_isCompleted),
-                    ),
-
-                    SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        final amount = _amountController.text.trim();
-                        final followFee = _followFeeController.text.trim();
-                        final regex = RegExp(r'^\d+\.\d{2}$');
-
-                        if (!regex.hasMatch(amount) ||
-                            !regex.hasMatch(followFee)) {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                backgroundColor: Colors.grey.shade50,
-                                title: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.error_outline,
-                                      color: Colors.redAccent,
-                                      size: 60,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'ข้อมูลไม่ถูกต้อง',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                content: Text(
-                                  'กรุณาระบุจำนวนเงินให้ถูกต้อง (เช่น 123.00)',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 16),
-                                ),
-                                actionsAlignment: MainAxisAlignment.center,
-                                actions: [
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.redAccent,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                    onPressed:
-                                        () => Navigator.of(context).pop(),
-                                    child: Text(
-                                      'ตกลง',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                          return;
-                        }
-
-                        if (_formKey.currentState!.validate()) {
-                          // ส่งข้อมูล
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal.shade700,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 3,
-                      ),
-                      icon: Icon(Icons.save, color: Colors.white),
-                      label: Text(
-                        'บันทึกข้อมูล',
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
                     ),
                   ],
                 ),
@@ -656,6 +499,7 @@ class _SaveRushPageState extends State<SaveRushPage> {
       );
     });
   }
+
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
@@ -1450,26 +1294,38 @@ class _SaveRushPageState extends State<SaveRushPage> {
                     validator:
                         (value) => value!.isEmpty ? 'กรุณากรอกหมายเหตุ' : null,
                   ),
-                  DropdownButtonFormField<String>(
-                    value: _selectedFollowType,
+                 DropdownButtonFormField<int>(
+                    value:
+                        _selectedFollowTypeId != 0
+                            ? _selectedFollowTypeId
+                            : null,
                     items:
                         _followTypes.map((type) {
-                          return DropdownMenuItem(
-                            value: type['code'],
-                            child: Text(type['label']!),
+                          final id = type['id'] as int;
+                          final meaning = type['meaning'] ?? '';
+                          return DropdownMenuItem<int>(
+                            value: id,
+                            child: Text(meaning),
                           );
                         }).toList(),
                     onChanged: (value) {
                       setState(() {
-                        _selectedFollowType = value;
+                        _selectedFollowTypeId = value ?? 0;
                       });
+
+                      
+                      print('📌 Dropdown เลือกแล้ว: ${value ?? 'null'}');
+                      print(
+                        '📌 _selectedFollowTypeId ตอนนี้: $_selectedFollowTypeId',
+                      );
+                      print('📌 _followTypes: $_followTypes');
+                      print('------------------------------------');
                     },
                     decoration: InputDecoration(
                       labelText: 'ประเภทการตาม',
-                      labelStyle: GoogleFonts.prompt(color: Colors.black),
                       prefixIcon: Icon(
                         Icons.assignment_turned_in,
-                        color: yellow,
+                        color: Colors.amber.shade700,
                       ),
                       filled: true,
                       fillColor: Colors.white,
@@ -1479,14 +1335,18 @@ class _SaveRushPageState extends State<SaveRushPage> {
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: grey),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: yellow, width: 1.5),
+                        borderSide: BorderSide(
+                          color: Colors.amber.shade700,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
+
                   SizedBox(height: 12),
                   TextFormField(
                     controller: _dueDateController,
