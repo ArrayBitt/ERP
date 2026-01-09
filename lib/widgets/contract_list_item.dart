@@ -8,7 +8,6 @@ String safeString(dynamic value) {
   return '-';
 }
 
-
 class ContractListItem extends StatelessWidget {
   final dynamic contract;
   final Function(String) onPhoneCall;
@@ -88,37 +87,35 @@ class ContractListItem extends StatelessWidget {
                   TextSpan(
                     text: 'เลขที่สัญญา: ${contract['contractno'] ?? ''} ',
                   ),
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.middle,
-                      child: Padding(
-                        padding: EdgeInsets.only(left: 4, bottom: 2),
-                      ),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 4, bottom: 2),
                     ),
+                  ),
                 ],
               ),
             ),
             SizedBox(height: 5),
-           Wrap(
+            Wrap(
               spacing: 5,
               runSpacing: 5,
               children: [
                 buildInfoBox('id', safeString(contract['contractid'])),
-                buildInfoBox('iduser', safeString(contract['employees_record_id'])),
+                buildInfoBox('id-user', safeString(contract['employeesid'])),
+                buildInfoBox('contractid', safeString(contract['contractid'])),
                 buildInfoBox('ชื่อลูกค้า', safeString(contract['arname'])),
                 buildInfoBox(
                   'วันที่ทำสัญญา',
-                  formatToDDMMYYYYThai(safeString(contract['contractdate'])),
+                  safeString(contract['contractdate']),
                 ),
                 buildInfoBox('เบอร์โทร', safeString(contract['mobileno'])),
                 buildInfoBox('หมายเหตุ', safeString(contract['followremark'])),
                 buildInfoBox('ที่อยู่', safeString(contract['addressis'])),
-                buildInfoBox(
-                  'วันที่จ่ายงาน',
-                  formatToDDMMYYYYThai(safeString(contract['tranferdate'])),
-                ),
+                buildInfoBox('วันที่จ่ายงาน', safeString(contract['tranferdate'])),
                 buildInfoBox('เวลาจ่ายงาน', safeString(contract['estm_date'])),
                 buildInfoBox('ค่าติดตาม', safeString(contract['follow400'])),
-                buildInfoBox('ยี่ห่อรถ', safeString(contract['brandname'])),
+                buildInfoBox('ยี่ห้อรถ', safeString(contract['brandname'])),
                 buildInfoBox(
                   'ยอดค้างชำระ',
                   safeString(contract['hpprice']),

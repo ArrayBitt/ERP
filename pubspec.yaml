@@ -1,8 +1,8 @@
-name: cjk
+name: erp
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.1+21
+version: 1.0.1+1
 
 environment:
   sdk: ^3.7.2
@@ -40,6 +40,8 @@ dependencies:
   image: ^4.0.15
   flutter_image_compress: ^2.1.0
   dropdown_search: ^5.0.6
+  jwt_decode: ^0.3.1
+  snowfall: ^0.0.2
  
 
 dev_dependencies:

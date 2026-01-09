@@ -1,4 +1,4 @@
-package com.example.cjk
+package com.example.erp
 
 import io.flutter.embedding.android.FlutterActivity
 

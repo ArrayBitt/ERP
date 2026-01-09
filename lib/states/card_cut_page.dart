@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 
 class CardCutPage extends StatefulWidget {
-  final String contractNo;
+  final Uint8List pdfBytes;
 
-  const CardCutPage({Key? key, required this.contractNo}) : super(key: key);
+  const CardCutPage({Key? key, required this.pdfBytes}) : super(key: key);
 
   @override
   _CardCutPageState createState() => _CardCutPageState();
@@ -20,23 +20,13 @@ class _CardCutPageState extends State<CardCutPage> {
   @override
   void initState() {
     super.initState();
-    loadPDF();
+    savePDF();
   }
 
-  Future<void> loadPDF() async {
-    final url ='https://ss.cjk-cr.com/Formspdf/frm_hp_cardcut.php?p_dbmsname=MotorBikeDBMS&p_docno=${widget.contractNo}';
-
-    //final url ='http://192.168.1.15/CJKTRAINING/Formspdf/frm_hp_cardcut.php?p_dbmsname=MotorBikeDBMS&p_docno=${widget.contractNo}';
-
-   
-
-    final response = await http.get(Uri.parse(url));
-    final bytes = response.bodyBytes;
-
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/cardcut.pdf');
-    await file.writeAsBytes(bytes, flush: true);
-
+  Future<void> savePDF() async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/cardcut_temp.pdf');
+    await file.writeAsBytes(widget.pdfBytes, flush: true);
     setState(() {
       localFilePath = file.path;
       isLoading = false;

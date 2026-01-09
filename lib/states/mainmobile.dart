@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:cjk/widgets/contract_detail_dialog.dart';
-import 'package:cjk/widgets/contract_list.dart';
-import 'package:cjk/widgets/contract_search_bar.dart';
+import 'package:erp/states/followallcontract.dart';
+import 'package:erp/widgets/contract_detail_dialog_loader.dart';
+import 'package:erp/widgets/contract_list.dart';
+import 'package:erp/widgets/contract_search_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
@@ -11,7 +12,13 @@ import '../states/authen.dart';
 
 class MainMobile extends StatefulWidget {
   final String username;
-  MainMobile({required this.username});
+  final int employeesId;
+  final String employeesRecordId;
+  MainMobile({
+    required this.username,
+    required this.employeesId,
+    required this.employeesRecordId,
+  });
 
   @override
   _MainMobileState createState() => _MainMobileState();
@@ -20,7 +27,7 @@ class MainMobile extends StatefulWidget {
 class _MainMobileState extends State<MainMobile> {
   bool _isLoading = false;
   List<dynamic> _contracts = [];
-  List<String> _contractIds = []; 
+  List<String> _contractIds = [];
   String _searchQuery = '';
 
   @override
@@ -34,9 +41,9 @@ class _MainMobileState extends State<MainMobile> {
     return prefs.getString('jwt_token') ?? '';
   }
 
- Future<void> _fetchData() async {
+  Future<void> _fetchData() async {
     final url =
-        'https://erp.imax.dev/api/followups/fin/send/mobilepp?username=${widget.username}';
+        'https://erp.somjai.app/api/followups/fin/send/mobilepp?username=${widget.username}';
     final token = await _getToken();
 
     setState(() {
@@ -54,34 +61,31 @@ class _MainMobileState extends State<MainMobile> {
         },
       );
 
-      // 🟢 log status + body ของ API ออกมาก่อน parse
       print('DEBUG status: ${response.statusCode}');
       print('DEBUG raw body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-
-        // 🟢 log data ที่ decode แล้ว
         print('DEBUG decoded data: $data');
 
         if (data is List) {
-          int countWithContractDi = 0;
-
           final contractsWithId =
               data.map((item) {
-                final cd = item['contractdi'];
-                if (cd != null && cd.toString().trim().isNotEmpty) {
-                  countWithContractDi++;
-                }
+                final cd = item['contractdi'] ?? item['contractid'] ?? '';
 
-                // 🟢 log ค่าแต่ละ item
-                print('DEBUG item: $item');
+                item['employeesid'] = widget.employeesId;
+                item['employees_record_id'] = widget.employeesRecordId;
 
-                return {...item, 'contractdi': cd ?? ''};
+                // ❗ log ดูค่า
+                print(
+                  'DEBUG contract after assigning employeesId/RecordId: '
+                  '${item['contractno']} | employeesId=${item['employeesid']} | employeesRecordId=${item['employees_record_id']}',
+                );
+
+                print('DEBUG item with employees: $item');
+
+                return {...item, 'contractdi': cd};
               }).toList();
-
-          print('DEBUG total items: ${data.length}');
-          print('DEBUG items with contractdi: $countWithContractDi');
 
           final ids =
               contractsWithId
@@ -106,7 +110,6 @@ class _MainMobileState extends State<MainMobile> {
       });
     }
   }
-
 
   void _showError(String message) {
     showDialog(
@@ -162,16 +165,24 @@ class _MainMobileState extends State<MainMobile> {
     }
   }
 
-  void _showContractDetails(dynamic contract) {
-    showDialog(
+void _showContractDetails(dynamic contract) {
+    // ❗ log ก่อนเปิด dialog
+    print(
+      'DEBUG _showContractDetails: contractNo=${contract['contractno']} | '
+      'employeesId=${contract['employeesid']} | employeesRecordId=${contract['employees_record_id']}',
+    );
+
+    ContractDetailDialogLoader.show(
       context: context,
-      builder:
-          (_) => ContractDetailDialog(
-            contract: contract,
-            username: widget.username,
-          ),
+      contract: contract,
+      username: widget.username,
+      employeesId: widget.employeesId,
+      employeesRecordId: widget.employeesRecordId,
     );
   }
+
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -189,13 +200,51 @@ class _MainMobileState extends State<MainMobile> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         centerTitle: true,
-        title: Text(
-          'สัญญาเร่งรัด (V 1.21)',
-          style: GoogleFonts.prompt(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-            color: Colors.black87,
-          ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'เร่งรัด ERPV.1',
+              style: GoogleFonts.prompt(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(width: 8),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.menu, color: Colors.black87),
+              onSelected: (value) {
+                if (value == 'follow_all') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => FollowAllContractPage(
+                            username: widget.username,
+                            employeesId: widget.employeesId,
+                            employeesRecordId: widget.employeesRecordId,
+                          ),
+                    ),
+                  );
+                }
+              },
+              itemBuilder:
+                  (context) => [
+                    PopupMenuItem<String>(
+                      value: 'follow_all',
+                      child: Row(
+                        children: [
+                          Icon(Icons.assignment, color: Colors.teal),
+                          const SizedBox(width: 8),
+                          Text('งานทั้งหมด', style: GoogleFonts.prompt()),
+                        ],
+                      ),
+                    ),
+                  ],
+            ),
+          ],
         ),
         iconTheme: IconThemeData(color: Colors.black87),
         actions: [

@@ -6,26 +6,23 @@ import '../states/show_contract.dart';
 class ContractDetailDialog extends StatelessWidget {
   final dynamic contract;
   final String username;
+  final Map<String, dynamic> balance;
+  final int employeesId; // <-- เพิ่มตรงนี้
+  final String employeesRecordId; // <-- เพิ่มตรงนี้
 
-  ContractDetailDialog({required this.contract, required this.username});
+  const ContractDetailDialog({
+    super.key,
+    required this.contract,
+    required this.username,
+    required this.balance,
+    required this.employeesId, // <-- เพิ่มตรงนี้
+    required this.employeesRecordId, // <-- เพิ่มตรงนี้
+  });
 
-  String formatDateToThaiDDMMYYYY(String? input) {
-    if (input == null || input.length != 8) return 'ไม่ระบุ';
-    try {
-      String year = input.substring(0, 4);
-      String month = input.substring(4, 6);
-      String day = input.substring(6, 8);
-      return '$day-$month-$year';
-    } catch (e) {
-      return 'ไม่ระบุ';
-    }
-  }
-
-  // ✅ รับ dynamic แล้วแปลงเป็น String
   Widget _buildDetailRow(String title, dynamic value) {
     final display = value?.toString() ?? 'ไม่ระบุ';
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -33,7 +30,9 @@ class ContractDetailDialog extends StatelessWidget {
             '$title: ',
             style: GoogleFonts.prompt(fontWeight: FontWeight.bold),
           ),
-          Expanded(child: Text(display, style: GoogleFonts.prompt())),
+          Expanded(
+            child: Text(display, style: GoogleFonts.prompt(), softWrap: true),
+          ),
         ],
       ),
     );
@@ -42,14 +41,11 @@ class ContractDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final dialogWidth = screenWidth * 0.8; // กำหนด dialog กว้าง 80% ของหน้าจอ
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       backgroundColor: Colors.grey[50],
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: screenWidth * 0.1,
-      ), // เว้นขอบซ้ายขวา 10%
+      insetPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.1),
       title: Center(
         child: Text(
           '📄 รายละเอียดสัญญา',
@@ -60,49 +56,49 @@ class ContractDetailDialog extends StatelessWidget {
           ),
         ),
       ),
-      content: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: dialogWidth,
-          maxHeight: MediaQuery.of(context).size.height * 0.6,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-               _buildDetailRow('id', contract['contractid']), 
-              _buildDetailRow('เลขที่สัญญา', contract['contractno']),       
-              _buildDetailRow('รหัสผู้ติดตาม', contract['username']),
-              _buildDetailRow(
-                'วันที่ทำสัญญา',
-                formatDateToThaiDDMMYYYY(contract['contractdate']),
-              ),
-              _buildDetailRow(
-                'วันที่จ่ายงาน',
-                formatDateToThaiDDMMYYYY(contract['tranferdate']),
-              ),
-              _buildDetailRow('ยอดชำระ', contract['hpprice']),
-              _buildDetailRow('หมายเหตุ', contract['followremark']),
-              _buildDetailRow('เบอร์มือถือ', contract['mobileno']),
-              _buildDetailRow('ที่อยู่', contract['addressis']),
-            ],
-          ),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDetailRow('id', contract['contractid']),
+            _buildDetailRow('id-user', employeesId), // <-- ใช้ employeesId
+            _buildDetailRow('เลขที่สัญญา', contract['contractno']),
+            _buildDetailRow('รหัสผู้ติดตาม', contract['username']),
+            _buildDetailRow('วันที่ทำสัญญา', contract['contractdate']),
+            _buildDetailRow('วันที่จ่ายงาน', contract['tranferdate']),
+            _buildDetailRow('ยอดชำระ', contract['hpprice']),
+            _buildDetailRow('หมายเหตุ', contract['followremark']),
+            _buildDetailRow('เบอร์มือถือ', contract['mobileno']),
+            _buildDetailRow('ที่อยู่', contract['addressis']),
+            const Divider(),
+            _buildDetailRow('เบี้ยปรับ', balance['intbalance'] ?? 0),
+            _buildDetailRow('ค่าทวงถาม', balance['free'] ?? 0),
+            _buildDetailRow('ยอดค้างทั้งหมด', balance['all_balance'] ?? 0),
+          ],
         ),
       ),
       actionsAlignment: MainAxisAlignment.spaceEvenly,
       actions: [
         ElevatedButton.icon(
-          icon: Icon(Icons.assignment, color: Colors.white),
-          label: Text('ระบบจัดเก็บเร่งรัด', style: GoogleFonts.prompt()),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.amber[800],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
+          icon: const Icon(Icons.assignment),
+          label: const Text('ระบบจัดเก็บเร่งรัด'),
           onPressed: () {
-            Navigator.of(context).pop();
-            Navigator.of(context).push(
+            if (employeesId <= 0 || employeesRecordId.isEmpty) {
+              // ❌ ป้องกันไม่ให้ส่งค่าไม่ถูกต้อง
+              showDialog(
+                context: context,
+                builder:
+                    (_) => const AlertDialog(
+                      title: Text('ข้อมูลพนักงานไม่ถูกต้อง'),
+                      content: Text('กรุณา logout แล้วเข้าใหม่'),
+                    ),
+              );
+              return;
+            }
+
+            Navigator.pop(context);
+            Navigator.push(
+              context,
               MaterialPageRoute(
                 builder:
                     (_) => SaveRushPage(
@@ -119,34 +115,30 @@ class ContractDetailDialog extends StatelessWidget {
                           contract['hp_overdueamt']?.toString() ?? '',
                       seqno: contract['seqno']?.toString() ?? '',
                       follow400: contract['follow400']?.toString() ?? '',
-                      contractId: contract['contractid']?.toString() ?? '', 
+                      contractId: contract['contractid']?.toString() ?? '',
                       followCount: '',
-                       employeeId: '',
-                        currentUserId: '',
+                      employeesId: employeesId,
+                      employeesRecordId: employeesRecordId,
+                      followup_id: contract['followup_id']?.toString() ?? '',
+                      checkrush: contract['checkrush']?.toString() ?? '',
                     ),
               ),
             );
           },
         ),
         ElevatedButton.icon(
-          icon: Icon(Icons.info_outline, color: Colors.white),
-          label: Text('รายละเอียดสัญญา', style: GoogleFonts.prompt()),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
+          icon: const Icon(Icons.info_outline),
+          label: const Text('รายละเอียดสัญญา'),
           onPressed: () {
-            Navigator.of(context).pop();
-            Navigator.of(context).push(
+            Navigator.pop(context);
+            Navigator.push(
+              context,
               MaterialPageRoute(
                 builder:
                     (_) => ShowContractPage(
-                      contractNo: contract['contractno']?.toString() ?? '',
-                      username: '',
-                      hpprice: null,
+                      contractNo: contract['contractno'] ?? '',
+                      contractId: contract['contractid'] ?? '',
+                      username: username,
                     ),
               ),
             );

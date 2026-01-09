@@ -1,21 +1,26 @@
-import 'package:cjk/states/pay_as400.dart';
-import 'package:flutter/material.dart';
+import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cjk/states/card_cut_page.dart';
-import 'package:cjk/states/contract_image.dart';
-import 'package:cjk/states/followContract.dart';
-import 'package:url_launcher/url_launcher.dart'; // ✅ เพิ่มตรงนี้
+import 'package:erp/states/card_cut_page.dart';
+import 'package:erp/states/contract_image.dart';
+import 'package:erp/states/followContract.dart';
+import 'package:erp/states/pay_as400.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ShowContractPage extends StatefulWidget {
   final String contractNo;
+  final String contractId;
+  final String username;
 
   const ShowContractPage({
     Key? key,
     required this.contractNo,
-    required String username,
-    required hpprice,
+    required this.contractId, 
+    required this.username,
   }) : super(key: key);
 
   @override
@@ -29,59 +34,64 @@ class _ShowContractPageState extends State<ShowContractPage> {
   @override
   void initState() {
     super.initState();
-    fetchContractDetails();
+  
   }
 
-  Future<void> fetchContractDetails() async {
-   final url = Uri.parse( 'https://ss.cjk-cr.com/CJK/api/appfollowup/show_contract.php?contractno=${widget.contractNo}',);
-
-  //final url = Uri.parse( 'http://192.168.1.15/CJKTRAINING/api/appfollowup/show_contract.php?contractno=${widget.contractNo}',);
-
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final List<dynamic> jsonResponse = json.decode(response.body);
-      if (jsonResponse.isNotEmpty) {
-        setState(() {
-          contractData = jsonResponse[0];
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          contractData = null;
-          isLoading = false;
-        });
-      }
-    } else {
-      setState(() {
-        contractData = null;
-        isLoading = false;
-      });
-    }
-  }
 
   Future<void> _openCardCutPDF() async {
-    final contractNo = contractData?['contractno'];
-    if (contractNo != null && contractNo.toString().isNotEmpty) {
+    final contractId = widget.contractId;
 
-      final url = Uri.parse('https://ss.cjk-cr.com/Formspdf/frm_hp_cardcut.php?p_dbmsname=MotorBikeDBMS&p_docno=$contractNo', );
-
-      //final url = Uri.parse( 'http://192.168.1.15/Formspdf/frm_hp_cardcut.php?p_dbmsname=MotorBikeDBMS&p_docno=$contractNo', );
-
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ไม่สามารถเปิดลิงก์ได้')));
-      }
-    } else {
+    if (contractId.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('ไม่พบเลขที่สัญญา')));
+      ).showSnackBar(const SnackBar(content: Text('ไม่พบเลขที่สัญญา')));
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token') ?? '';
+
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่พบ token กรุณาเข้าสู่ระบบใหม่')),
+      );
+      return;
+    }
+
+    final url = Uri.parse(
+      'https://erp.somjai.app/api/contracts/get/data/to/gen/pdf/$contractId',
+    );
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/pdf',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final bytes = response.bodyBytes;
+
+        // ส่ง PDF bytes ไปหน้า CardCutPage
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => CardCutPage(pdfBytes: bytes)),
+        );
+      } else if (response.statusCode == 401) {
+        throw 'Unauthorized: Token หมดอายุหรือไม่ถูกต้อง';
+      } else {
+        throw 'ไม่สามารถโหลด PDF (status: ${response.statusCode})';
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
-@override
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -94,8 +104,7 @@ class _ShowContractPageState extends State<ShowContractPage> {
             child:
                 isLoading
                     ? Center(child: CircularProgressIndicator())
-                    : contractData != null
-                    ? SingleChildScrollView(
+                    : SingleChildScrollView(
                       padding: EdgeInsets.all(16),
                       child: Card(
                         elevation: 6,
@@ -109,98 +118,91 @@ class _ShowContractPageState extends State<ShowContractPage> {
                             children: [
                               _buildTitle('📌 ข้อมูลสัญญา'),
                               Divider(),
+                              // ✅ ใช้ widget.contractNo แสดงเลขสัญญาที่ส่งมา
                               _buildDetailTile(
                                 Icons.receipt_long,
                                 'Contract No',
-                                contractData!['contractno'],
+                                widget.contractNo,
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.car_rental,
                                 'Chassis No',
-                                contractData!['chassisno'],
+                                contractData?['chassisno'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.person,
                                 'Sale No',
-                                contractData!['saleno'],
+                                contractData?['saleno'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.assignment,
                                 'Job Description',
-                                contractData!['jobdescription'],
+                                contractData?['jobdescription'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.car_crash,
                                 'Return Car',
-                                contractData!['returncar'],
+                                contractData?['returncar'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.monetization_on,
                                 'Return Amount',
-                                contractData!['returnamt'],
+                                contractData?['returnamt'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.payments,
                                 'Amount Per Period',
-                                contractData!['amtperperiod'],
+                                contractData?['amtperperiod'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.timeline,
                                 'Total Period',
-                                contractData!['totalperiod'],
+                                contractData?['totalperiod'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.percent,
                                 'HP Rate',
-                                contractData!['hprate'],
+                                contractData?['hprate'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.event_available,
                                 'First Paid',
-                                contractData!['firstpaid'],
+                                contractData?['firstpaid'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.event_busy,
                                 'Last Paid',
-                                contractData!['lastpaid'],
+                                contractData?['lastpaid'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.warning,
                                 'Overdue Days',
-                                contractData!['max_nodays'],
+                                contractData?['max_nodays'],
                               ),
                               Divider(),
                               _buildDetailTile(
                                 Icons.map,
                                 'Maplocation',
-                                contractData!['maplocations'],
+                                contractData?['maplocations'],
                               ),
                               Divider(),
                             ],
                           ),
                         ),
                       ),
-                    )
-                    : Center(
-                      child: Text(
-                        'ไม่พบข้อมูลสัญญา',
-                        style: GoogleFonts.prompt(fontSize: 16),
-                      ),
                     ),
           ),
-
-          // ปุ่มล่างทั้งหมด
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
             child: Column(
@@ -210,23 +212,15 @@ class _ShowContractPageState extends State<ShowContractPage> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          final contractNo = contractData?['contractno'];
-                          if (contractNo != null &&
-                              contractNo.toString().isNotEmpty) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) => ContractImagePage(
-                                      contractNo: contractNo,
-                                    ),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('ไม่พบเลขที่สัญญา')),
-                            );
-                          }
+                          final contractNo = widget.contractNo;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      ContractImagePage(contractNo: contractNo),
+                            ),
+                          );
                         },
                         icon: Icon(Icons.image, size: 18),
                         label: Text(
@@ -247,22 +241,15 @@ class _ShowContractPageState extends State<ShowContractPage> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          final contractNo = contractData?['contractno'];
-                          if (contractNo != null &&
-                              contractNo.toString().isNotEmpty) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) =>
-                                        PayAS400Page(contractNo: contractNo),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('ไม่พบเลขที่สัญญา')),
-                            );
-                          }
+                          final contractNo = widget.contractNo;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      PayAS400Page(contractNo: contractNo),
+                            ),
+                          );
                         },
                         icon: Icon(Icons.payment, size: 18),
                         label: Text(
@@ -286,24 +273,7 @@ class _ShowContractPageState extends State<ShowContractPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
-                          final contractNo = contractData?['contractno'];
-                          if (contractNo != null &&
-                              contractNo.toString().isNotEmpty) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) =>
-                                        CardCutPage(contractNo: contractNo),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('ไม่พบเลขที่สัญญา')),
-                            );
-                          }
-                        },
+                        onPressed: _openCardCutPDF,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amber[800],
                           foregroundColor: Colors.white,
@@ -325,23 +295,17 @@ class _ShowContractPageState extends State<ShowContractPage> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          final contractNo = contractData?['contractno'];
-                          if (contractNo != null &&
-                              contractNo.toString().isNotEmpty) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) => FollowContractPage(
-                                      contractNo: contractNo,
-                                    ),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('ไม่พบเลขที่สัญญา')),
-                            );
-                          }
+                          final contractNo = widget.contractNo;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => FollowContractPage(
+                                    contractNo: contractNo,
+                                    username: widget.username,
+                                  ),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueGrey,
@@ -369,7 +333,6 @@ class _ShowContractPageState extends State<ShowContractPage> {
       ),
     );
   }
-
 
   Widget _buildTitle(String title) {
     return Text(

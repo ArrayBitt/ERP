@@ -1,7 +1,7 @@
-import 'package:cjk/utils/user_prefs.dart'; // เพิ่มบรรทัดนี้
-import 'package:cjk/states/authen.dart';
-import 'package:cjk/states/mainmobile.dart';
-import 'package:cjk/utils/check_version.dart';
+import 'package:erp/utils/user_prefs.dart'; // เพิ่มบรรทัดนี้
+import 'package:erp/states/authen.dart';
+import 'package:erp/states/mainmobile.dart';
+import 'package:erp/utils/check_version.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -45,12 +45,16 @@ class _AppWithVersionCheckState extends State<AppWithVersionCheck> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      checkAppVersion(context);
+      //checkAppVersion(context);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return MainMobile(username: widget.username);
+    return MainMobile(
+      username: widget.username,
+      employeesId: 0, // ค่า default ชั่วคราว ถ้ายังไม่ login
+      employeesRecordId: '', // ค่า default ชั่วคราว
+    );
   }
 }
